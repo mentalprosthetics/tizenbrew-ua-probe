@@ -16,7 +16,14 @@ This build uses `packageType: "mods"` and `websiteURL` → webhook.site. The **H
 
 ## Add once in TizenBrew Module Manager
 
-Module id: `mentalprosthetics/tizenbrew-ua-probe`
+Use the **GitHub** add button. Enter **with jsDelivr pin** (required — unpinned CDN path can lag GitHub for hours):
+
+```text
+mentalprosthetics/tizenbrew-ua-probe@master
+```
+
+That becomes `gh/mentalprosthetics/tizenbrew-ua-probe@master` → `cdn.jsdelivr.net/gh/...@master/package.json`.  
+**Do not** add bare `mentalprosthetics/tizenbrew-ua-probe` while the default jsDelivr path still serves old `1.0.0`/`app` (causes flash via `127.0.0.1:8081`).
 
 Host for on-TV TB service: **`127.0.0.1`** + manual hard restart (Demeter sdb fails — expected).
 
