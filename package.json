@@ -1,11 +1,15 @@
 {
   "name": "UA Probe",
-  "version": "1.2.0",
-  "description": "Multi-method UA lab via mods websiteURL → jsDelivr @master HTML (no re-add for content updates)",
-  "packageType": "mods",
+  "version": "1.3.0",
+  "description": "UA lab as app via local 8081 (M47-safe; mods websiteURL was blank black on TV WebView TLS)",
+  "packageType": "app",
   "appName": "UA Probe",
-  "websiteURL": "https://cdn.jsdelivr.net/gh/mentalprosthetics/tizenbrew-ua-probe@master/app/ua-lab.html",
-  "main": "inject.js",
+  "appPath": "app/ua-lab.html",
   "keys": [],
-  "files": ["inject.js", "README.md", "app"]
+  "evaluateScriptOnDocumentStart": false,
+  "files": [
+    "inject.js",
+    "README.md",
+    "app"
+  ]
 }
