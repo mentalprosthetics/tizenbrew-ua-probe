@@ -1,0 +1,11 @@
+﻿{
+  "name": "UA Probe",
+  "version": "1.0.0",
+  "description": "TizenBrew UA capture probe for RV LR Gertie",
+  "packageType": "app",
+  "appName": "UA Probe",
+  "appPath": "app/index.html",
+  "keys": [],
+  "evaluateScriptOnDocumentStart": false,
+  "files": ["app", "README.md"]
+}

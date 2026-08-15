@@ -1,0 +1,19 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>UA Probe</title>
+  <script>
+    (function () {
+      var ua = navigator.userAgent || '';
+      var dest = 'https://webhook.site/899bfbcc-ce68-4aa3-b37a-8fe4e198f96b/?src=tizenbrew-ua-probe&ua=' + encodeURIComponent(ua);
+      location.replace(dest);
+    })();
+  </script>
+</head>
+<body style="background:#111;color:#fff;font:28px sans-serif;padding:40px">
+  <p>UA Probe redirecting…</p>
+  <p id="ua"></p>
+  <script>document.getElementById('ua').textContent = navigator.userAgent;</script>
+</body>
+</html>
