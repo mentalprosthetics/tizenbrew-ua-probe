@@ -1,35 +1,43 @@
 ﻿# tizenbrew-ua-probe
 
-Temporary TizenBrew module for RV LR UA spoof proof.
+Multi-method UA lab for RV LR. Canonical: [`mentalprosthetics/tizenbrew-ua-probe`](https://github.com/mentalprosthetics/tizenbrew-ua-probe)  
+**Never:** `niteowl099/tizenbrew-ua-probe`
 
-- **Canonical GitHub:** [`mentalprosthetics/tizenbrew-ua-probe`](https://github.com/mentalprosthetics/tizenbrew-ua-probe)
-- **Do not use:** `niteowl099/tizenbrew-ua-probe` (MOVED stub only)
+## One-time add (then reopen forever)
 
-## Why `mods` + `websiteURL` (not `app` + local HTML)
-
-From [TizenBrew MODULES.md](https://github.com/reisxd/TizenBrew/blob/main/docs/MODULES.md) and UI source:
-
-- **`app` modules** navigate to `http://127.0.0.1:8081/module/<id>/<appPath>` (on-TV service). If that hop fails, the UI **flashes back** to TizenBrew — our HTML never runs (observed on LR).
-- **`mods` modules** (same pattern as [TizenTube](https://github.com/reisxd/TizenTube)) set `websiteURL` to a remote HTTPS page. Opening the module loads that URL in the TB webview (UA Settings apply). Changing the remote page does **not** require re-adding if `websiteURL` is stable.
-
-This build uses `packageType: "mods"` and `websiteURL` → webhook.site. The **HTTP request to open webhook is the UA evidence**.
-
-## Add once in TizenBrew Module Manager
-
-Use the **GitHub** add button. Enter **with jsDelivr pin** (required — unpinned CDN path can lag GitHub for hours):
+TizenBrew → **Add GitHub** → enter exactly:
 
 ```text
 mentalprosthetics/tizenbrew-ua-probe@master
 ```
 
-That becomes `gh/mentalprosthetics/tizenbrew-ua-probe@master` → `cdn.jsdelivr.net/gh/...@master/package.json`.  
-**Do not** add bare `mentalprosthetics/tizenbrew-ua-probe` while the default jsDelivr path still serves old `1.0.0`/`app` (causes flash via `127.0.0.1:8081`).
+Why `@master`: TB loads `cdn.jsdelivr.net/gh/.../package.json`. Unpinned path can stay on stale `1.0.0`/`app` for a long time (verified 2026-08-15) → flash via `127.0.0.1:8081`. Pinned `@master` gets current `mods` metadata.
 
-Host for on-TV TB service: **`127.0.0.1`** + manual hard restart (Demeter sdb fails — expected).
+**After this one add:** agents update `app/ua-lab.html` on GitHub, purge jsDelivr, you **re-open** the module (no re-type). Content URL is also pinned:
+
+`https://cdn.jsdelivr.net/gh/mentalprosthetics/tizenbrew-ua-probe@master/app/ua-lab.html`
+
+Host for TB service: **`127.0.0.1`** + hard restart.
+
+## What ua-lab does (many methods at once)
+
+- Large on-screen `navigator.userAgent` + PASS/FAIL vs `UE50MU7000` / Cobalt9
+- Parallel: webhook.site Image + XHR + fetch + iframe
+- Parallel: `https://httpbin.org/user-agent` XHR (echo JSON on screen if CORS allows)
+- **No redirect away** — you can read the TV; agent reads webhook/httpbin if they fire
 
 Webhook: `eeec2629-de1c-4f9f-b34e-6708a77c5c03`  
-Inspect: https://webhook.site/#!/eeec2629-de1c-4f9f-b34e-6708a77c5c03  
 API: https://webhook.site/token/eeec2629-de1c-4f9f-b34e-6708a77c5c03/requests
 
-**Pass:** `User-Agent` contains `UE50MU7000`.  
-**Fail:** Smart-TV / SamsungBrowser / Chrome/47 without that token (same class as Internet baseline).
+## Other tools researched
+
+| Tool | Role |
+|---|---|
+| TizenBrew UA Settings + `setUserAgentString` | Applies spoof; needs relaunch ([main.jsx](https://github.com/reisxd/TizenBrew/blob/main/tizenbrew-app/TizenBrew/tizenbrew-ui/src/main.jsx)) |
+| httpbin.org/user-agent | Public UA echo JSON |
+| webhook.site | Agent-pullable request log |
+| TB CDP (`debugger.js`) | Can `Runtime.evaluate` UA when debug port up — needs Host=Demeter, not 127 |
+| Samsung Internet | Baseline only — **not** TB module UA |
+| TizenTube / Nuvio | Existing modules; not UA loggers |
+
+See workspace note: `UA-PROBE-NOTE-2026-08-15.md`.

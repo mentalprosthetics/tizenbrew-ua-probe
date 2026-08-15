@@ -1,8 +1,8 @@
-/* TizenBrew mods inject — websiteURL already hits webhook with the real UA.
-   Keep this tiny; do not navigate away. */
+/* Optional mods inject — primary evidence is ua-lab.html (on-screen + multi-beacon). */
 (function () {
   try {
-    var ua = navigator.userAgent || '';
-    if (typeof console !== 'undefined' && console.log) console.log('[ua-probe]', ua);
+    if (typeof console !== 'undefined' && console.log) {
+      console.log('[ua-probe inject]', navigator.userAgent);
+    }
   } catch (e) {}
 })();

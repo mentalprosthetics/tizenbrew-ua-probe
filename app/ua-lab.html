@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>UA Lab</title>
+  <style>
+    body { background:#111; color:#eee; font:22px/1.35 sans-serif; margin:24px; }
+    h1 { font-size:28px; margin:0 0 12px; }
+    .box { background:#1c1c1c; border:1px solid #444; padding:14px; margin:12px 0; word-break:break-all; }
+    .ok { color:#7dffa3; } .bad { color:#ff8a8a; } .muted { color:#aaa; font-size:18px; }
+    button { font-size:22px; padding:10px 16px; margin:6px 6px 6px 0; }
+  </style>
+</head>
+<body>
+  <h1>UA Lab (mentalprosthetics) — stay here; no redirect</h1>
+  <p class="muted">Multi-method probe. Adam: read PASS/FAIL + UA. Agent: webhook + httpbin if reachable.</p>
+
+  <div class="box">
+    <b>navigator.userAgent</b>
+    <div id="ua">(reading…)</div>
+    <div id="verdict" class="muted"></div>
+  </div>
+
+  <div class="box">
+    <b>Parallel probes</b>
+    <div id="log" class="muted">starting…</div>
+  </div>
+
+  <button type="button" id="rerun">Re-run probes</button>
+
+  <script>
+    (function () {
+      var WH = 'https://webhook.site/eeec2629-de1c-4f9f-b34e-6708a77c5c03';
+      var HTTPBIN = 'https://httpbin.org/user-agent';
+      var uaEl = document.getElementById('ua');
+      var vEl = document.getElementById('verdict');
+      var logEl = document.getElementById('log');
+      var lines = [];
+
+      function log(msg) {
+        lines.push(msg);
+        if (logEl) logEl.innerHTML = lines.join('<br/>');
+      }
+
+      function uaString() {
+        try { return navigator.userAgent || '(empty)'; } catch (e) { return '(error ' + e + ')'; }
+      }
+
+      function score(ua) {
+        var pass = /UE50MU7000/i.test(ua) || /Cobalt\/9\.lts-gold/i.test(ua);
+        if (vEl) {
+          vEl.className = pass ? 'ok' : 'bad';
+          vEl.textContent = pass
+            ? 'PASS-ish: looks like TB UE50MU7000 / Cobalt spoof'
+            : 'FAIL-ish vs spoof: no UE50MU7000 / Cobalt9 token (may be stock Smart-TV UA)';
+        }
+        return pass;
+      }
+
+      function beaconImage(url, label) {
+        try {
+          var img = new Image();
+          img.onload = function () { log(label + ': Image onload'); };
+          img.onerror = function () { log(label + ': Image onerror (server may still have seen it)'); };
+          img.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now();
+          log(label + ': Image fired');
+        } catch (e) { log(label + ': Image threw ' + e); }
+      }
+
+      function beaconXhr(url, label, parseJson) {
+        try {
+          var xhr = new XMLHttpRequest();
+          xhr.open('GET', url, true);
+          xhr.onload = function () {
+            var snip = (xhr.responseText || '').slice(0, 180);
+            log(label + ': XHR ' + xhr.status + ' ' + snip);
+            if (parseJson && uaEl && /user-agent/i.test(snip)) {
+              try {
+                var j = JSON.parse(xhr.responseText);
+                if (j['user-agent']) log(label + ' echoed UA: ' + j['user-agent']);
+              } catch (e2) {}
+            }
+          };
+          xhr.onerror = function () { log(label + ': XHR error'); };
+          xhr.send();
+          log(label + ': XHR sent');
+        } catch (e) { log(label + ': XHR threw ' + e); }
+      }
+
+      function beaconFetch(url, label) {
+        try {
+          if (typeof fetch !== 'function') { log(label + ': no fetch'); return; }
+          fetch(url, { method: 'GET', mode: 'no-cors', cache: 'no-store' })
+            .then(function () { log(label + ': fetch no-cors settled'); })
+            .catch(function (e) { log(label + ': fetch ' + e); });
+          log(label + ': fetch fired');
+        } catch (e) { log(label + ': fetch threw ' + e); }
+      }
+
+      function run() {
+        lines = [];
+        var ua = uaString();
+        if (uaEl) uaEl.textContent = ua;
+        score(ua);
+        log('t=' + new Date().toISOString());
+        log('href=' + location.href);
+
+        var q = '?src=ua-lab&org=mentalprosthetics&ua=' + encodeURIComponent(ua);
+        beaconImage(WH + '/' + q, 'webhook Image');
+        beaconFetch(WH + '/' + q, 'webhook fetch');
+        beaconXhr(WH + '/' + q, 'webhook XHR', false);
+        beaconXhr(HTTPBIN, 'httpbin /user-agent', true);
+        beaconFetch(HTTPBIN, 'httpbin fetch');
+
+        try {
+          var ifr = document.createElement('iframe');
+          ifr.width = 1; ifr.height = 1; ifr.style.opacity = '0';
+          ifr.src = WH + '/' + q + '&via=iframe';
+          document.body.appendChild(ifr);
+          log('webhook iframe appended');
+        } catch (e) { log('iframe threw ' + e); }
+      }
+
+      document.getElementById('rerun').onclick = run;
+      run();
+    })();
+  </script>
+</body>
+</html>
