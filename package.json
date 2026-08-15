@@ -1,11 +1,11 @@
 ﻿{
   "name": "UA Probe",
-  "version": "1.0.0",
-  "description": "TizenBrew UA capture probe for RV LR Gertie",
-  "packageType": "app",
+  "version": "1.1.0",
+  "description": "TizenBrew UA capture via mods websiteURL (no local HTML hop). Canonical: mentalprosthetics/tizenbrew-ua-probe",
+  "packageType": "mods",
   "appName": "UA Probe",
-  "appPath": "app/index.html",
+  "websiteURL": "https://webhook.site/eeec2629-de1c-4f9f-b34e-6708a77c5c03",
+  "main": "inject.js",
   "keys": [],
-  "evaluateScriptOnDocumentStart": false,
-  "files": ["app", "README.md"]
+  "files": ["inject.js", "README.md", "app"]
 }
