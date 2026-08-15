@@ -1,4 +1,4 @@
-﻿# tizenbrew-ua-probe
+# tizenbrew-ua-probe
 
 Multi-method UA lab for RV LR. Canonical: [`mentalprosthetics/tizenbrew-ua-probe`](https://github.com/mentalprosthetics/tizenbrew-ua-probe)  
 **Never:** `niteowl099/tizenbrew-ua-probe`
