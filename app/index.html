@@ -3,17 +3,52 @@
 <head>
   <meta charset="utf-8" />
   <title>UA Probe</title>
+</head>
+<body style="background:#111;color:#fff;font:26px sans-serif;padding:36px;line-height:1.35">
+  <p><b>UA Probe</b> (mentalprosthetics) — stay on this screen; read UA below.</p>
+  <p id="status">Sending beacon…</p>
+  <p style="word-break:break-all" id="ua"></p>
   <script>
     (function () {
-      var ua = navigator.userAgent || '';
-      var dest = 'https://webhook.site/733b9ddc-dda3-4272-b2db-8e3b7f73e9c2/?src=tizenbrew-ua-probe&org=mentalprosthetics&ua=' + encodeURIComponent(ua);
-      location.replace(dest);
+      var ua = navigator.userAgent || '(empty)';
+      var el = document.getElementById('ua');
+      var st = document.getElementById('status');
+      if (el) el.textContent = ua;
+
+      // Public HTTPS catcher (Tizen 3 often fails location.replace to webhook;
+      // Image/beacon is more reliable). Org: mentalprosthetics — not niteowl099.
+      var base = 'https://webhook.site/eeec2629-de1c-4f9f-b34e-6708a77c5c03/';
+      var q = '?src=tizenbrew-ua-probe&org=mentalprosthetics&ua=' + encodeURIComponent(ua);
+      var url = base + q;
+
+      function mark(ok, detail) {
+        if (st) st.textContent = (ok ? 'Beacon OK — ' : 'Beacon try — ') + detail;
+      }
+
+      try {
+        var img = new Image();
+        img.onload = function () { mark(true, 'Image onload'); };
+        img.onerror = function () { mark(false, 'Image onerror (may still have hit server)'); };
+        img.src = url;
+      } catch (e1) {
+        mark(false, 'Image threw: ' + e1);
+      }
+
+      try {
+        if (typeof fetch === 'function') {
+          fetch(url, { method: 'GET', mode: 'no-cors', cache: 'no-store' })
+            .then(function () { mark(true, 'fetch no-cors fired'); })
+            .catch(function (e) { mark(false, 'fetch: ' + e); });
+        }
+      } catch (e2) {
+        mark(false, 'fetch threw: ' + e2);
+      }
+
+      // Soft navigate last; if it fails, on-screen UA remains for Adam to read.
+      setTimeout(function () {
+        try { location.href = url; } catch (e3) { mark(false, 'nav: ' + e3); }
+      }, 2500);
     })();
   </script>
-</head>
-<body style="background:#111;color:#fff;font:28px sans-serif;padding:40px">
-  <p>UA Probe redirecting (mentalprosthetics).</p>
-  <p id="ua"></p>
-  <script>document.getElementById('ua').textContent = navigator.userAgent;</script>
 </body>
 </html>
