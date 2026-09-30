@@ -25,6 +25,15 @@ Host for TB service: **`127.0.0.1`** + hard restart.
 - Parallel: webhook.site Image + XHR + fetch + iframe
 - Parallel: `https://httpbin.org/user-agent` XHR (echo JSON on screen if CORS allows)
 - **No redirect away** — you can read the TV; agent reads webhook/httpbin if they fire
+- Shows `vX.Y.Z` in the title (must equal `package.json` version) so a stale jsDelivr copy is obvious
+- Compares httpbin's echoed **header** UA against `navigator.userAgent` (flags a MISMATCH)
+- Re-run button is auto-focused: press OK/Enter on the remote
+
+## Rules (CI enforces: `.github/workflows/validate.yml` → `scripts/validate.js`)
+
+- `package.json`: no UTF-8 BOM (TB "Unknown Module"), valid `packageType`/`appPath`
+- All JS (inline `<script>` + `*.js`) parses as **ES5** — Tizen 3 TB WebView is Chromium 47
+- `app/index.html` and `inject.js` are legacy (not referenced by `appPath`/`main`)
 
 Webhook: `eeec2629-de1c-4f9f-b34e-6708a77c5c03`  
 API: https://webhook.site/token/eeec2629-de1c-4f9f-b34e-6708a77c5c03/requests

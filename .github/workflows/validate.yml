@@ -1,0 +1,25 @@
+name: validate
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      # acorn goes into a temp prefix so package.json stays a pure TizenBrew manifest
+      # (its "name" has spaces, which npm rejects).
+      - run: npm i --prefix "$RUNNER_TEMP/lint" acorn@8
+      - run: node scripts/validate.js
+        env:
+          NODE_PATH: ${{ runner.temp }}/lint/node_modules

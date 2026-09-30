@@ -9,11 +9,13 @@
     h1 { font-size:48px; margin:0 0 16px; color:#ff0; }
     .box { background:#111; border:3px solid #ff0; padding:16px; margin:16px 0; word-break:break-all; color:#ff0; }
     .ok { color:#7dffa3; } .bad { color:#ff8a8a; } .muted { color:#ffcc00; font-size:28px; }
+    #log { white-space:pre-wrap; }
     button { font-size:28px; padding:12px 18px; margin:8px 8px 8px 0; }
+    button:focus { outline:4px solid #7dffa3; }
   </style>
 </head>
 <body>
-  <h1>UA LAB — YELLOW ON BLACK</h1>
+  <h1>UA LAB — YELLOW ON BLACK <span id="ver" class="muted"></span></h1>
   <p style="font-size:40px;color:#ff0">If you can read this, app/8081 path works. Press RETURN to exit to TizenBrew.</p>
   <p class="muted">Multi-method probe. Adam: read PASS/FAIL + UA. Agent: webhook + httpbin if reachable.</p>
 
@@ -21,6 +23,7 @@
     <b>navigator.userAgent</b>
     <div id="ua">(reading…)</div>
     <div id="verdict" class="muted"></div>
+    <div id="env" class="muted"></div>
   </div>
 
   <div class="box">
@@ -28,28 +31,59 @@
     <div id="log" class="muted">starting…</div>
   </div>
 
-  <button type="button" id="rerun">Re-run probes</button>
+  <button type="button" id="rerun">Re-run probes (OK/Enter)</button>
 
   <script>
+    /* ES5 only: Tizen 3 TizenBrew WebView is Chromium 47. No let/const/arrows/template strings. */
     (function () {
+      // Keep in sync with package.json "version" (CI checks). Shown on screen so a
+      // stale jsDelivr copy is obvious at a glance.
+      var VERSION = '1.4.0';
       var WH = 'https://webhook.site/eeec2629-de1c-4f9f-b34e-6708a77c5c03';
       var HTTPBIN = 'https://httpbin.org/user-agent';
+      var TIMEOUT_MS = 10000;
       var uaEl = document.getElementById('ua');
       var vEl = document.getElementById('verdict');
+      var envEl = document.getElementById('env');
       var logEl = document.getElementById('log');
+      var verEl = document.getElementById('ver');
       var lines = [];
+      var gen = 0;          // bumps on every run; late callbacks from older runs are dropped
+      var iframe = null;
+      var navUa = '';
 
-      function log(msg) {
-        lines.push(msg);
-        if (logEl) logEl.innerHTML = lines.join('<br/>');
+      if (verEl) verEl.textContent = 'v' + VERSION;
+
+      function render() {
+        // textContent, never innerHTML: log lines include server responses.
+        if (logEl) logEl.textContent = lines.join('\n');
       }
+
+      function logger(g) {
+        return function (msg) {
+          if (g !== gen) return;
+          lines.push(String(msg));
+          render();
+        };
+      }
+
+      // Surface script errors on the TV itself (no devtools there).
+      window.onerror = function (msg, src, line) {
+        lines.push('JS ERROR: ' + msg + ' @' + line);
+        render();
+        return false;
+      };
 
       function uaString() {
         try { return navigator.userAgent || '(empty)'; } catch (e) { return '(error ' + e + ')'; }
       }
 
+      function isSpoof(ua) {
+        return /UE50MU7000/i.test(ua) || /Cobalt\/9\.lts-gold/i.test(ua);
+      }
+
       function score(ua) {
-        var pass = /UE50MU7000/i.test(ua) || /Cobalt\/9\.lts-gold/i.test(ua);
+        var pass = isSpoof(ua);
         if (vEl) {
           vEl.className = pass ? 'ok' : 'bad';
           vEl.textContent = pass
@@ -59,71 +93,109 @@
         return pass;
       }
 
-      function beaconImage(url, label) {
+      function envSummary() {
+        var parts = [];
+        function add(k, fn) {
+          try { var v = fn(); if (v !== undefined && v !== null && v !== '') parts.push(k + '=' + v); } catch (e) {}
+        }
+        add('platform', function () { return navigator.platform; });
+        add('screen', function () { return screen.width + 'x' + screen.height; });
+        add('dpr', function () { return window.devicePixelRatio; });
+        add('tizen', function () { return typeof tizen !== 'undefined' ? 'yes' : 'no'; });
+        add('webapis', function () { return typeof webapis !== 'undefined' ? 'yes' : 'no'; });
+        add('model', function () { return webapis.productinfo.getRealModel(); });
+        add('fetch', function () { return typeof fetch === 'function' ? 'yes' : 'no'; });
+        return parts.join(' | ');
+      }
+
+      function withBust(url) {
+        return url + (url.indexOf('?') >= 0 ? '&' : '?') + 't=' + new Date().getTime();
+      }
+
+      function beaconImage(url, label, log) {
         try {
           var img = new Image();
           img.onload = function () { log(label + ': Image onload'); };
           img.onerror = function () { log(label + ': Image onerror (server may still have seen it)'); };
-          img.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now();
+          img.src = withBust(url);
           log(label + ': Image fired');
         } catch (e) { log(label + ': Image threw ' + e); }
       }
 
-      function beaconXhr(url, label, parseJson) {
+      function beaconXhr(url, label, log, onJson) {
         try {
           var xhr = new XMLHttpRequest();
+          var settled = false;
           xhr.open('GET', url, true);
+          try { xhr.timeout = TIMEOUT_MS; } catch (eT) {}
           xhr.onload = function () {
-            var snip = (xhr.responseText || '').slice(0, 180);
-            log(label + ': XHR ' + xhr.status + ' ' + snip);
-            if (parseJson && uaEl && /user-agent/i.test(snip)) {
-              try {
-                var j = JSON.parse(xhr.responseText);
-                if (j['user-agent']) log(label + ' echoed UA: ' + j['user-agent']);
-              } catch (e2) {}
+            if (settled) return; settled = true;
+            var body = xhr.responseText || '';
+            log(label + ': XHR ' + xhr.status + ' ' + body.slice(0, 180));
+            if (onJson && body) {
+              try { onJson(JSON.parse(body)); } catch (eJ) { log(label + ': not JSON'); }
             }
           };
-          xhr.onerror = function () { log(label + ': XHR error'); };
+          xhr.onerror = function () { if (settled) return; settled = true; log(label + ': XHR error (CORS/TLS/offline)'); };
+          xhr.ontimeout = function () { if (settled) return; settled = true; log(label + ': XHR timeout ' + TIMEOUT_MS + 'ms'); };
           xhr.send();
           log(label + ': XHR sent');
         } catch (e) { log(label + ': XHR threw ' + e); }
       }
 
-      function beaconFetch(url, label) {
+      function beaconFetch(url, label, log) {
         try {
           if (typeof fetch !== 'function') { log(label + ': no fetch'); return; }
           fetch(url, { method: 'GET', mode: 'no-cors', cache: 'no-store' })
             .then(function () { log(label + ': fetch no-cors settled'); })
-            .catch(function (e) { log(label + ': fetch ' + e); });
+            ['catch'](function (e) { log(label + ': fetch ' + e); });
           log(label + ': fetch fired');
         } catch (e) { log(label + ': fetch threw ' + e); }
       }
 
+      function compareHeaderUa(echoed, log) {
+        if (!echoed) return;
+        log('httpbin header UA: ' + echoed);
+        log(echoed === navUa
+          ? 'header UA == navigator.userAgent'
+          : 'MISMATCH: header UA differs from navigator.userAgent (spoof in header: ' + (isSpoof(echoed) ? 'yes' : 'no') + ')');
+      }
+
       function run() {
+        gen += 1;
         lines = [];
+        var log = logger(gen);
         var ua = uaString();
+        navUa = ua;
         if (uaEl) uaEl.textContent = ua;
         score(ua);
-        log('t=' + new Date().toISOString());
+        if (envEl) envEl.textContent = envSummary();
+        log('v' + VERSION + ' run#' + gen + ' t=' + new Date().toISOString());
         log('href=' + location.href);
 
-        var q = '?src=ua-lab&org=mentalprosthetics&ua=' + encodeURIComponent(ua);
-        beaconImage(WH + '/' + q, 'webhook Image');
-        beaconFetch(WH + '/' + q, 'webhook fetch');
-        beaconXhr(WH + '/' + q, 'webhook XHR', false);
-        beaconXhr(HTTPBIN, 'httpbin /user-agent', true);
-        beaconFetch(HTTPBIN, 'httpbin fetch');
+        var q = '?src=ua-lab&org=mentalprosthetics&v=' + VERSION + '&ua=' + encodeURIComponent(ua);
+        beaconImage(WH + '/' + q, 'webhook Image', log);
+        beaconFetch(WH + '/' + q + '&via=fetch', 'webhook fetch', log);
+        beaconXhr(WH + '/' + q + '&via=xhr', 'webhook XHR', log, null);
+        beaconXhr(HTTPBIN, 'httpbin /user-agent', log, function (j) { compareHeaderUa(j && j['user-agent'], log); });
+        beaconFetch(HTTPBIN, 'httpbin fetch', log);
 
         try {
-          var ifr = document.createElement('iframe');
-          ifr.width = 1; ifr.height = 1; ifr.style.opacity = '0';
-          ifr.src = WH + '/' + q + '&via=iframe';
-          document.body.appendChild(ifr);
+          if (iframe && iframe.parentNode) iframe.parentNode.removeChild(iframe);
+          iframe = document.createElement('iframe');
+          iframe.width = 1; iframe.height = 1; iframe.style.opacity = '0'; iframe.style.border = '0';
+          iframe.src = withBust(WH + '/' + q + '&via=iframe');
+          document.body.appendChild(iframe);
           log('webhook iframe appended');
         } catch (e) { log('iframe threw ' + e); }
       }
 
-      document.getElementById('rerun').onclick = run;
+      var btn = document.getElementById('rerun');
+      if (btn) {
+        btn.onclick = run;
+        // TV remotes have no pointer: give the button focus so OK/Enter re-runs.
+        try { btn.focus(); } catch (eF) {}
+      }
       run();
     })();
   </script>
